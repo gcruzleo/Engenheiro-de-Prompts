@@ -1,0 +1,7 @@
+# Ignorar chaves de API e segredos locais
+.streamlit/
+
+# Ignorar pastas padrão de Python (por precaução)
+__pycache__/
+*.pyc
+.env
