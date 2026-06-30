@@ -119,58 +119,64 @@ def process_file_attachment(uploaded_file, groq_client):
 # --- Funções Dinâmicas de Prompt baseadas no Tipo de IA ---
 def get_system_prompt_triagem(tipo_ia):
     return f"""Você é um analista investigativo de Engenharia de Prompts.
-Sua missão é ler a ideia embrionária do usuário (e possivelmente o contexto de arquivos anexados que ele enviou) e formular de 2 a 3 perguntas cruciais e diretas para extrair o contexto final necessário para criar um prompt otimizado para: {tipo_ia}.
+Sua missão é ler a ideia embrionária do usuário (e possivelmente o contexto de arquivos anexados) e formular de 2 a 3 perguntas cruciais para criar um "Rich Prompt" otimizado para: {tipo_ia}.
 
-As perguntas devem focar em:
-- O objetivo principal e contexto da solicitação.
-- Detalhes técnicos, estilísticos ou visuais (dependendo de qual IA foi escolhida).
-- Restrições, público-alvo ou nível de complexidade desejado.
+Técnica (Chain-of-Thought): Antes de gerar as perguntas, analise mentalmente quais parâmetros críticos estão faltando na ideia original (ex: falta de persona, formato, restrições).
+As perguntas devem extrair exatamente essas lacunas, focando em:
+- Objetivo principal e Contexto.
+- Detalhes técnicos, estilísticos ou parâmetros específicos (dependendo da IA escolhida).
+- Restrições estritas e nível de complexidade desejado.
 
 As perguntas devem ser curtas, claras, objetivas e numeradas.
 NÃO adicione saudações, introduções ou conclusões. Apenas liste as perguntas."""
 
 def get_system_prompt_sintese(tipo_ia):
-    base_prompt = "Você é um Engenheiro de Prompts Especialista. "
+    base_prompt = "Atue como um Arquiteto de Prompts Sênior. Sua missão é transformar o input do usuário em um 'Rich Prompt' hiper-otimizado.\n"
     
     if "IA Geral" in tipo_ia:
-        base_prompt += """Sua missão é estruturar um prompt magistral focado em extrair o máximo de desempenho de LLMs gerais (Gemini, ChatGPT, Claude). 
-CRÍTICO: O formato de saída NÃO deve parecer um resumo ou índice de tópicos. O prompt DEVE ser formulado como uma ORDEM IMPERATIVA E DIRETA para a IA que vai recebê-lo. 
-Ele deve iniciar estabelecendo uma persona e a tarefa (ex: "Atue como um [Especialista]. Sua tarefa é analisar os tópicos abaixo e elaborar um relatório profundo..."). 
-O prompt final DEVE orientar a IA passo a passo sobre como executar o pedido, exigir alto rigor técnico, incorporar formatação em Markdown, usar jargões apropriados e exigir estruturação analítica densa."""
+        base_prompt += """
+O FORMATO DE SAÍDA OBRIGATÓRIO deve ser construído estritamente sob o Framework C-P-C-F. O prompt final gerado DEVE ser uma ORDEM IMPERATIVA contendo as seguintes sessões claramente delimitadas em Markdown:
+1. # Contexto: O substrato informacional fornecido.
+2. # Persona: O papel que a IA alvo deve assumir (ex: "Atue como um Especialista Sênior em...").
+3. # Comando: A tarefa atômica desambiguada.
+4. # Formato e Restrições: Exigência do formato de saída e âncoras de 'Groundedness' (ex: "Responda apenas com base no contexto. Se não souber, diga 'não sei'").
+5. # Raciocínio (CoT): Uma instrução obrigando a IA a "pensar passo a passo" antes de gerar a saída final.
+O prompt não deve parecer um resumo, mas sim um microambiente de execução direto e imperativo."""
     elif "Vibecoding" in tipo_ia:
-        base_prompt += """Sua missão é estruturar um prompt magistral focado em extrair o máximo de desempenho de agentes autônomos de programação (Antigravity, Cursor, Cline).
-O FORMATO DE SAÍDA OBRIGATÓRIO do seu prompt deve ser um documento Markdown robusto com as seguintes sessões claramente delimitadas:
-1. # Contexto: Explicação clara do problema.
-2. # Objetivo: O que deve ser construído.
-3. # Arquitetura e Estrutura de Arquivos: Definição clara de como organizar o código.
-4. # Plano de Implementação Passo-a-Passo: Instruções granulares para o agente seguir.
-5. # Restrições e Regras Estritas: Exigência de código limpo (SOLID), tratamento de edge cases e proibição categórica de código preguiçoso (sem placeholders).
-O prompt DEVE ser escrito como uma instrução direta para o agente de IA ler."""
+        base_prompt += """
+O FORMATO DE SAÍDA OBRIGATÓRIO deve ser um documento Markdown robusto focado em agentes autônomos de código (Antigravity, Cursor). O prompt gerado DEVE conter:
+1. # Contexto e Arquitetura: Explicação do problema.
+2. # Stack Tecnológica: Exigência para o agente usar a stack explícita e o paradigma de programação correto.
+3. # Plano de Implementação (CoT): Instruções granulares e modulares (Decomposição DAG).
+4. # Restrições e Regras Estritas: Exigência categórica de código limpo (SOLID), documentação (JSDoc/Docstring), tratamento robusto de exceções e proibição de código preguiçoso.
+O prompt DEVE ser escrito como uma instrução determinística para o agente de IA executar."""
     elif "Imagens" in tipo_ia:
-        base_prompt += """Sua missão é estruturar um prompt magistral focado em geração de imagens (Midjourney, DALL-E, Stable Diffusion). 
-O FORMATO DE SAÍDA OBRIGATÓRIO deve ser EXCLUSIVAMENTE em formato JSON (.json) válido.
-Estruture o JSON com chaves em inglês contendo descritores estéticos otimizados para difusão. Exemplo de estrutura requerida:
+        base_prompt += """
+O FORMATO DE SAÍDA OBRIGATÓRIO deve ser EXCLUSIVAMENTE em formato JSON (.json) válido, otimizado para Modelos de Difusão Latente.
+Estruture o JSON com chaves em inglês:
 {
-  "subject": "Descrição do objeto principal",
+  "subject": "Objeto principal e contexto",
   "environment": "Ambiente e fundo",
-  "lighting": "Tipos de iluminação (ex: cinematic, volumetric)",
-  "camera": "Lente, ângulo, profundidade de campo",
-  "style": "Estilo artístico, renderização (ex: Unreal Engine, 8k)",
-  "raw_prompt": "String única juntando os valores acima separados por vírgulas, pronta para o Midjourney"
+  "lighting": "Iluminação e fotografia",
+  "camera_parameters": "Lente, ângulo, profundidade de campo",
+  "style": "Estilo artístico, renderização (ex: Unreal Engine)",
+  "negative_prompt": "Parâmetros negativos rigidos (ex: mutated hands:1.5, blurry, text)",
+  "raw_prompt": "String única juntando os valores positivos separados por vírgulas"
 }"""
     elif "Vídeos" in tipo_ia:
-        base_prompt += """Sua missão é estruturar um prompt magistral focado em geração de vídeos (Sora, Runway, Pika). 
-O FORMATO DE SAÍDA OBRIGATÓRIO deve ser EXCLUSIVAMENTE em formato JSON (.json) válido.
-Estruture o JSON com chaves em inglês contendo descrições exatas de movimento. Exemplo de estrutura:
+        base_prompt += """
+O FORMATO DE SAÍDA OBRIGATÓRIO deve ser EXCLUSIVAMENTE em formato JSON (.json) válido, otimizado para Modelos de Difusão Temporal (Sora, Runway).
+Estruture o JSON com chaves em inglês:
 {
-  "subject": "Sujeito e sua ação",
-  "camera_motion": "Movimento de câmera (pan, tilt, zoom, tracking)",
-  "scene_dynamics": "Física e comportamento da cena ao longo do tempo",
+  "subject_and_action": "Sujeito e sua ação detalhada",
+  "camera_motion": "Direções de câmera (pan, tilt, zoom, tracking)",
+  "scene_dynamics": "Coerência temporal e física do movimento",
   "lighting_and_atmosphere": "Iluminação cinematográfica, textura, clima",
-  "raw_prompt": "String única juntando os valores acima pronta para o gerador de vídeos"
+  "negative_prompt": "Parâmetros negativos (ex: morphing, inconsistent framing, static)",
+  "raw_prompt": "String única juntando os valores positivos pronta para o gerador"
 }"""
         
-    base_prompt += "\n\nRetorne APENAS o texto do prompt final (ou o JSON puro) pronto para uso. Não escreva nenhuma introdução, conclusão ou comentários adicionais. Use blocos de código markdown apropriados (```markdown ou ```json)."
+    base_prompt += "\n\nRetorne APENAS o texto do prompt final (ou o JSON puro) pronto para uso. Não escreva introdução, conclusão ou comentários adicionais. Use blocos de código apropriados (```markdown ou ```json)."
     return base_prompt
 
 # --- Gerenciamento de Estado (State Management) ---
