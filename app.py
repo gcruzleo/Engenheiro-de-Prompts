@@ -1,7 +1,11 @@
 import streamlit as st
 import os
+import base64
+import tempfile
 from groq import Groq
 from st_copy_to_clipboard import st_copy_to_clipboard
+import PyPDF2
+import docx
 
 # Configuração da página - minimalista e focada em leitura
 st.set_page_config(page_title="Arquiteto de Prompts Sênior", layout="centered")
@@ -12,8 +16,6 @@ MODEL_NAME = "llama-3.3-70b-versatile"
 # Inicialização do Cliente Groq
 @st.cache_resource
 def get_groq_client():
-    # Tenta obter a chave através dos segredos do Streamlit (para produção/site)
-    # Se não encontrar, busca nas variáveis de ambiente.
     try:
         api_key = st.secrets["GROQ_API_KEY"]
     except Exception:
@@ -27,10 +29,97 @@ def get_groq_client():
 
 client = get_groq_client()
 
-# Funções Dinâmicas de Prompt baseadas no Tipo de IA
+# --- Processadores de Arquivos (Opção C) ---
+def extract_text_from_pdf(file):
+    pdf_reader = PyPDF2.PdfReader(file)
+    text = ""
+    for page in pdf_reader.pages:
+        extracted = page.extract_text()
+        if extracted:
+            text += extracted + "\n"
+    return text
+
+def extract_text_from_docx(file):
+    doc = docx.Document(file)
+    text = ""
+    for para in doc.paragraphs:
+        text += para.text + "\n"
+    return text
+
+def process_file_attachment(uploaded_file, groq_client):
+    """
+    Processa arquivos PDF, DOCX, TXT, Áudio (Whisper) ou Imagens (Llama Vision).
+    Retorna uma string formatada com o conteúdo para o contexto.
+    """
+    if uploaded_file is None:
+        return ""
+        
+    file_type = uploaded_file.type
+    file_name = uploaded_file.name
+    
+    try:
+        # 1. Documentos de Texto
+        if "pdf" in file_type:
+            return f"\n--- CONTEÚDO DO PDF ({file_name}) ---\n" + extract_text_from_pdf(uploaded_file)
+        
+        elif "wordprocessingml.document" in file_type or "docx" in file_name:
+            return f"\n--- CONTEÚDO DO DOCX ({file_name}) ---\n" + extract_text_from_docx(uploaded_file)
+            
+        elif "text/plain" in file_type:
+            return f"\n--- CONTEÚDO DO TXT ({file_name}) ---\n" + uploaded_file.getvalue().decode("utf-8")
+            
+        # 2. Áudio (Whisper API)
+        elif "audio" in file_type or file_name.lower().endswith(('.mp3', '.wav', '.m4a')):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file_name.split('.')[-1]}") as temp_audio:
+                temp_audio.write(uploaded_file.getvalue())
+                temp_audio_path = temp_audio.name
+                
+            try:
+                with open(temp_audio_path, "rb") as f:
+                    transcription = groq_client.audio.transcriptions.create(
+                      file=(file_name, f.read()),
+                      model="whisper-large-v3",
+                      response_format="text"
+                    )
+                return f"\n--- TRANSCRIÇÃO DO ÁUDIO ({file_name}) ---\n" + transcription
+            finally:
+                os.remove(temp_audio_path)
+                
+        # 3. Imagens (Llama Vision API)
+        elif "image" in file_type:
+            base64_image = base64.b64encode(uploaded_file.getvalue()).decode('utf-8')
+            chat_completion = groq_client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Faça uma descrição extremamente detalhada desta imagem. Descreva os objetos, as pessoas, as cores, o ambiente, o estilo de iluminação, a técnica visual e qualquer texto presente. Esta descrição será usada como contexto para eu criar um prompt generativo depois."},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{file_type};base64,{base64_image}",
+                                }
+                            }
+                        ]
+                    }
+                ],
+                model="llama-3.2-11b-vision-preview",
+            )
+            image_desc = chat_completion.choices[0].message.content
+            return f"\n--- DESCRIÇÃO DA IMAGEM ({file_name}) ---\n[A IA de visão analisou a imagem anexada e relatou o seguinte:]\n" + image_desc
+            
+        else:
+            st.warning(f"Formato ignorado: {file_type}. Apenas textos, áudios e imagens são suportados.")
+            return ""
+            
+    except Exception as e:
+        st.error(f"Erro ao processar {file_name}: {str(e)}")
+        return ""
+
+# --- Funções Dinâmicas de Prompt baseadas no Tipo de IA ---
 def get_system_prompt_triagem(tipo_ia):
     return f"""Você é um analista investigativo de Engenharia de Prompts.
-Sua missão é ler a ideia embrionária do usuário e formular de 2 a 3 perguntas cruciais e diretas para extrair o contexto necessário e criar um prompt otimizado para: {tipo_ia}.
+Sua missão é ler a ideia embrionária do usuário (e possivelmente o contexto de arquivos anexados que ele enviou) e formular de 2 a 3 perguntas cruciais e diretas para extrair o contexto final necessário para criar um prompt otimizado para: {tipo_ia}.
 
 As perguntas devem focar em:
 - O objetivo principal e contexto da solicitação.
@@ -81,7 +170,7 @@ Estruture o JSON com chaves em inglês contendo descrições exatas de movimento
     base_prompt += "\n\nRetorne APENAS o texto do prompt final (ou o JSON puro) pronto para uso. Não escreva nenhuma introdução, conclusão ou comentários adicionais. Use blocos de código markdown apropriados (```markdown ou ```json)."
     return base_prompt
 
-# Gerenciamento de Estado (State Management)
+# --- Gerenciamento de Estado (State Management) ---
 if 'step' not in st.session_state:
     st.session_state.step = 1
 if 'ideia_inicial' not in st.session_state:
@@ -103,15 +192,15 @@ def reset_app():
     st.session_state.prompt_final = ""
     st.session_state.tipo_ia = "IA Geral (Gemini, ChatGPT, Claude)"
 
-# Cabeçalho Principal
+# --- Cabeçalho Principal ---
 st.title("Arquiteto de Prompts Sênior")
-st.markdown("Transforme solicitações básicas em prompts magistrais otimizados para diversas ferramentas de IA.")
+st.markdown("Transforme solicitações básicas e arquivos em prompts magistrais otimizados para diversas ferramentas de IA.")
 st.divider()
 
 # ETAPA 1: TRIAGEM
 if st.session_state.step == 1:
     st.subheader("Etapa 1: Triagem")
-    st.markdown("Descreva a sua ideia embrionária para iniciarmos o projeto.")
+    st.markdown("Descreva a sua ideia embrionária e anexe arquivos (se houver) para iniciarmos o projeto.")
     
     opcoes_ia = [
         "IA Geral (Gemini, ChatGPT, Claude)", 
@@ -126,29 +215,40 @@ if st.session_state.step == 1:
         index=opcoes_ia.index(st.session_state.tipo_ia) if st.session_state.tipo_ia in opcoes_ia else 0
     )
     
-    ideia = st.text_area("Ideia Inicial:", value=st.session_state.ideia_inicial, height=150, placeholder="Ex: Preciso de um script em python... / Uma foto de um gato no espaço...")
+    ideia = st.text_area("Ideia Inicial:", value=st.session_state.ideia_inicial, height=150, placeholder="Ex: Preciso de um script em python... / Uma foto baseada na imagem anexada...")
+    
+    uploaded_file = st.file_uploader("Anexar arquivo de contexto (Opcional - Textos, Áudios ou Imagens)", type=["pdf", "txt", "docx", "mp3", "wav", "m4a", "png", "jpg", "jpeg"])
     
     if st.button("Analisar Ideia", type="primary"):
-        if ideia.strip():
-            with st.spinner("Analisando sua ideia e formulando perguntas investigativas..."):
+        if ideia.strip() or uploaded_file is not None:
+            ideia_completa = ideia
+            
+            # Se houver arquivo, o sistema "lê" e traduz para texto
+            if uploaded_file is not None:
+                with st.spinner("Processando o arquivo anexado pelas IAs auxiliares (isso pode levar alguns segundos)..."):
+                    conteudo_extraido = process_file_attachment(uploaded_file, client)
+                    if conteudo_extraido:
+                        ideia_completa += f"\n\n{conteudo_extraido}"
+            
+            with st.spinner("Analisando o contexto e formulando perguntas investigativas..."):
                 try:
                     chat_completion = client.chat.completions.create(
                         messages=[
                             {"role": "system", "content": get_system_prompt_triagem(tipo_ia)},
-                            {"role": "user", "content": ideia}
+                            {"role": "user", "content": ideia_completa}
                         ],
                         model=MODEL_NAME,
                         temperature=0.7,
                     )
                     st.session_state.perguntas = chat_completion.choices[0].message.content
-                    st.session_state.ideia_inicial = ideia
+                    st.session_state.ideia_inicial = ideia_completa # Salvamos a ideia combinada com o anexo
                     st.session_state.tipo_ia = tipo_ia
                     st.session_state.step = 2
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erro na comunicação com a API: {e}")
         else:
-            st.warning("Por favor, digite alguma ideia antes de continuar.")
+            st.warning("Por favor, digite alguma ideia ou anexe um arquivo antes de continuar.")
 
 # ETAPA 2: ENTREVISTA
 elif st.session_state.step == 2:
@@ -171,7 +271,7 @@ elif st.session_state.step == 2:
                 st.session_state.respostas = respostas
                 with st.spinner("Sintetizando o seu Prompt Magistral..."):
                     contexto_completo = (
-                        f"IDEIA INICIAL DO USUÁRIO:\n{st.session_state.ideia_inicial}\n\n"
+                        f"IDEIA INICIAL (INCLUINDO ANEXOS LIDOS):\n{st.session_state.ideia_inicial}\n\n"
                         f"PERGUNTAS DA ENTREVISTA:\n{st.session_state.perguntas}\n\n"
                         f"RESPOSTAS DO USUÁRIO:\n{st.session_state.respostas}"
                     )

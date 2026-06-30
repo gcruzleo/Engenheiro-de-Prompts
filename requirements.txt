@@ -1,3 +1,5 @@
 groq
 streamlit
 st-copy-to-clipboard
+PyPDF2
+python-docx
