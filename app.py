@@ -133,7 +133,10 @@ def get_system_prompt_sintese(tipo_ia):
     base_prompt = "Você é um Engenheiro de Prompts Especialista. "
     
     if "IA Geral" in tipo_ia:
-        base_prompt += "Sua missão é estruturar um prompt magistral focado em extrair o máximo de desempenho de LLMs gerais (Gemini, ChatGPT, Claude). O prompt final DEVE exigir alto rigor técnico, incorporar formatação em Markdown, usar jargões técnicos apropriados, exigir fontes e ter estruturação analítica densa (a não ser que o usuário tenha pedido de forma resumida)."
+        base_prompt += """Sua missão é estruturar um prompt magistral focado em extrair o máximo de desempenho de LLMs gerais (Gemini, ChatGPT, Claude). 
+CRÍTICO: O formato de saída NÃO deve parecer um resumo ou índice de tópicos. O prompt DEVE ser formulado como uma ORDEM IMPERATIVA E DIRETA para a IA que vai recebê-lo. 
+Ele deve iniciar estabelecendo uma persona e a tarefa (ex: "Atue como um [Especialista]. Sua tarefa é analisar os tópicos abaixo e elaborar um relatório profundo..."). 
+O prompt final DEVE orientar a IA passo a passo sobre como executar o pedido, exigir alto rigor técnico, incorporar formatação em Markdown, usar jargões apropriados e exigir estruturação analítica densa."""
     elif "Vibecoding" in tipo_ia:
         base_prompt += """Sua missão é estruturar um prompt magistral focado em extrair o máximo de desempenho de agentes autônomos de programação (Antigravity, Cursor, Cline).
 O FORMATO DE SAÍDA OBRIGATÓRIO do seu prompt deve ser um documento Markdown robusto com as seguintes sessões claramente delimitadas:
