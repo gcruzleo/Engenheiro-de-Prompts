@@ -314,10 +314,42 @@ elif st.session_state.step == 3:
         after_copy_label="✅ Copiado!"
     )
     
-    st.write("") # Espaçamento
+    st.divider()
+    st.markdown("### Refinamento Contínuo")
+    st.markdown("Faltou alguma coisa? Adicione novas observações abaixo e o Arquiteto irá aperfeiçoar o prompt atual sem perder o raciocínio da entrevista.")
+    
+    novas_observacoes = st.text_area("Novas observações ou correções:", height=100, placeholder="Ex: Adicione uma regra sobre X... / O formato da saída deve ser alterado para Y...")
+    
+    if st.button("✨ Aperfeiçoar Prompt"):
+        if novas_observacoes.strip():
+            with st.spinner("Aperfeiçoando o prompt e mantendo o contexto..."):
+                contexto_completo = (
+                    f"IDEIA INICIAL (INCLUINDO ANEXOS LIDOS):\n{st.session_state.ideia_inicial}\n\n"
+                    f"PERGUNTAS DA ENTREVISTA:\n{st.session_state.perguntas}\n\n"
+                    f"RESPOSTAS DO USUÁRIO:\n{st.session_state.respostas}"
+                )
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[
+                            {"role": "system", "content": get_system_prompt_sintese(st.session_state.tipo_ia)},
+                            {"role": "user", "content": contexto_completo},
+                            {"role": "assistant", "content": st.session_state.prompt_final},
+                            {"role": "user", "content": f"Aperfeiçoe e reescreva o prompt anterior. Você DEVE incorporar e obedecer rigorosamente as seguintes novas observações/correções do usuário:\n\n{novas_observacoes}"}
+                        ],
+                        model=MODEL_NAME,
+                        temperature=0.7,
+                    )
+                    st.session_state.prompt_final = chat_completion.choices[0].message.content
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro na comunicação com a API: {e}")
+        else:
+            st.warning("Por favor, digite alguma observação antes de clicar em Aperfeiçoar.")
+    
+    st.divider()
     col1, col2 = st.columns([1, 1])
     with col1:
-        if st.button("Refazer Entrevista"):
+        if st.button("Voltar para Entrevista"):
             st.session_state.step = 2
             st.rerun()
     with col2:
